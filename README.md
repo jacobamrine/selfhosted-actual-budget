@@ -1,19 +1,20 @@
-# Traefik Reverse Proxy Deployment
+# Actual Budget Self-Hosted Deployment
 
-This repository contains my Docker Compose deployment for running Traefik as a reverse proxy for self-hosted Docker services.
+This repository contains my Docker Compose deployment for self-hosting [Actual Budget](https://actualbudget.org/), an open-source, privacy-focused personal finance application.
 
-The goal of this project is not to modify Traefik itself, but to document a clean, repeatable reverse proxy setup using Docker Compose, Portainer, Docker networking, HTTPS, Let's Encrypt, and environment-based configuration.
+The goal of this project is not to modify Actual Budget itself, but to document a clean, repeatable self-hosted deployment using Docker Compose, Portainer, Traefik, HTTPS, and persistent storage.
 
-## Features
+- Actual Budget website: https://actualbudget.org/
+- Actual Budget GitHub: https://github.com/actualbudget/actual
 
-- Traefik reverse proxy deployed with Docker Compose
-- Managed as a Portainer stack
-- Docker provider with containers hidden by default
-- HTTP and HTTPS entrypoints
-- Let's Encrypt certificate generation using the HTTP challenge
-- External Docker network for proxied services
-- Traefik dashboard protected with Basic Auth
-- Environment variables used for configurable values and secrets
+## Deployment Notes
+
+- Deployed as a Portainer stack
+- Runs Actual Budget using Docker Compose
+- Routed through a Traefik reverse proxy
+- Secured with HTTPS using Let's Encrypt
+- Uses persistent storage for application data
+- Keeps configurable values in environment variables
 
 ## Repository Structure
 
@@ -29,9 +30,9 @@ The goal of this project is not to modify Traefik itself, but to document a clea
 
 - Docker installed on the host
 - Portainer or Docker Compose available for stack deployment
+- Traefik reverse proxy already configured
+- External Docker network named `proxy`
 - A domain or subdomain pointed to the server
-- Ports `80` and `443` open on the server/firewall
-- An external Docker network named `proxy`
 
 Create the proxy network if it does not already exist:
 
@@ -41,114 +42,114 @@ docker network create proxy
 
 ## Environment Variables
 
-When deploying through Portainer, add these values as stack environment variables. For local CLI deployment, create a `.env` file from `.env.example`.
+When deploying through Portainer, add the required values as stack environment variables.
+
+For local CLI deployment, create a `.env` file from `.env.example`:
+
+```bash
+cp .env.example .env
+```
 
 Example `.env.example`:
 
 ```env
-TRAEFIK_VERSION=v3.3
-ACME_EMAIL=your-email@example.com
-TRAEFIK_URL=traefik.example.com
-TRAEFIK_DASHBOARD_AUTH=admin:REPLACE_WITH_HASHED_PASSWORD
+ACTUAL_VERSION=latest
+ACTUAL_HOST=actual.example.com
 ```
 
 Do not commit your real `.env` file.
 
-## Basic Auth
+## Example Service Configuration
 
-The Traefik dashboard is protected with Basic Auth. Generate a hashed username and password with:
+Actual should be attached to the same external `proxy` network used by Traefik. Traefik labels route traffic from the configured hostname to the Actual container.
 
-```bash
-htpasswd -nbB admin your-password
+Example label pattern:
+
+```yaml
+labels:
+  - traefik.enable=true
+  - traefik.http.routers.actual.rule=Host(`${ACTUAL_HOST}`)
+  - traefik.http.routers.actual.entrypoints=websecure
+  - traefik.http.routers.actual.tls=true
+  - traefik.http.routers.actual.tls.certresolver=le
+  - traefik.http.services.actual.loadbalancer.server.port=5006
 ```
 
-If the generated hash contains `$`, escape each `$` as `$$` when placing it in the `.env` file so Docker Compose reads it correctly.
+The `loadbalancer.server.port` value should match the internal port used by the Actual container.
 
-## Deployment
+## Start the Stack
 
-This stack is deployed through Portainer using the `docker-compose.yml` file in this repository.
+If deploying through Portainer, deploy this repository as a stack and provide the required environment variables.
 
-General deployment flow:
-
-1. Create an external Docker network named `proxy`
-2. Add the required environment variables in Portainer
-3. Deploy the stack from the Compose file
-4. Confirm Traefik is running and listening on ports `80` and `443`
-
-### Optional CLI Deployment
-
-If deploying directly from the server instead of Portainer:
+For direct Docker Compose deployment:
 
 ```bash
 docker compose up -d
-docker compose logs -f traefik
+```
+
+View logs:
+
+```bash
+docker compose logs -f
+```
+
+Stop the stack:
+
+```bash
 docker compose down
 ```
 
-## Exposing a Service
+## Updating
 
-Attach the service to the same external `proxy` network and add Traefik labels.
+Update the image version, then redeploy the stack through Portainer.
 
-Example:
+For CLI deployment:
 
-```yaml
-services:
-  app:
-    image: example/app:latest
-    networks:
-      - proxy
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.app.rule=Host(`app.example.com`)
-      - traefik.http.routers.app.entrypoints=websecure
-      - traefik.http.routers.app.tls=true
-      - traefik.http.routers.app.tls.certresolver=le
-      - traefik.http.services.app.loadbalancer.server.port=8080
-
-networks:
-  proxy:
-    external: true
+```bash
+docker compose pull
+docker compose up -d
 ```
 
-The `loadbalancer.server.port` value should match the internal container port used by the application.
+Using a pinned version instead of `latest` is recommended for more predictable updates.
 
 ## Security Notes
 
 - Keep `.env` out of source control
-- Use a pinned Traefik version instead of `latest`
-- Mount the Docker socket as read-only when possible
-- Use a strong password for the dashboard
-- Consider limiting dashboard access by IP address or VPN for production use
+- Do not commit personal finance data or backups
+- Use HTTPS when exposing Actual outside the local network
+- Keep the application data volume persistent and backed up securely
+- Limit public exposure if the service is only intended for personal use
 
 Suggested `.gitignore`:
 
 ```gitignore
 .env
+data/
 ```
 
 ## Troubleshooting
 
-### 404 from Traefik
+### Site does not load
 
-Traefik is running, but no router matched the request. Check the hostname, router rule, labels, and network.
+Check DNS, Traefik labels, HTTPS certificate status, and whether the container is attached to the `proxy` network.
 
 ### Bad Gateway
 
-Traefik matched the route but cannot reach the backend container. Check that the service is running, attached to the `proxy` network, and using the correct internal port.
+Traefik matched the route but cannot reach the Actual container. Check that the container is running and that the internal service port is correct.
 
-### Certificate Issues
+### Data does not persist
 
-Check that DNS points to the server, ports `80` and `443` are open, and the ACME email is set correctly.
+Confirm that the Compose file uses a persistent Docker volume or bind mount for Actual's data directory.
 
 ## What I Learned
 
-- How to configure Traefik as a Docker reverse proxy
-- How to route services using Docker labels
-- How to use an external Docker network for shared reverse proxy access
-- How to configure automatic HTTPS certificates with Let's Encrypt
-- How to protect the Traefik dashboard with Basic Auth
+- How to deploy a self-hosted application with Docker Compose
+- How to manage a Portainer stack
+- How to route an application through Traefik
+- How to use HTTPS with a self-hosted service
+- How to manage persistent application data
 - How to separate public configuration from private environment values
 
 ## Notes
 
-This setup is intended for personal self-hosted projects and homelab-style deployments. It demonstrates Docker Compose, reverse proxy routing, HTTPS certificate management, Portainer stack deployment, and Docker networking.
+This is a personal infrastructure/deployment project. Actual Budget is developed and maintained by the Actual Budget project.
