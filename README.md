@@ -54,7 +54,7 @@ Example `.env.example`:
 
 ```env
 ACTUAL_VERSION=latest
-ACTUAL_HOST=actual.example.com
+ACTUAL_URL=actual.example.com
 ```
 
 Do not commit your real `.env` file.
@@ -115,7 +115,6 @@ Using a pinned version instead of `latest` is recommended for more predictable u
 ## Security Notes
 
 - Keep `.env` out of source control
-- Do not commit personal finance data or backups
 - Use HTTPS when exposing Actual outside the local network
 - Keep the application data volume persistent and backed up securely
 - Limit public exposure if the service is only intended for personal use
