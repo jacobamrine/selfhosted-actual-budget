@@ -1,0 +1,39 @@
+services:
+  actual_server:
+    image: docker.io/actualbudget/actual-server:${ACTUAL_VERSION}
+    labels:
+      - traefik.enable=true
+      
+      - traefik.http.routers.actual.rule=Host(`${ACTUAL_URL}`)
+      - traefik.http.routers.actual.entrypoints=websecure
+
+      - traefik.http.routers.actual.tls=true
+      - traefik.http.routers.actual.tls.certresolver=le
+      
+      - traefik.http.services.actual.loadbalancer.server.port=5006
+
+      # Rate limit
+      - traefik.http.middlewares.actual-ratelimit.ratelimit.average=30
+      - traefik.http.middlewares.actual-ratelimit.ratelimit.burst=60
+      - traefik.http.middlewares.actual-ratelimit.ratelimit.period=1s
+
+      # Attach middleware to the router
+      - traefik.http.routers.actual.middlewares=actual-ratelimit
+      
+    volumes:
+      - ./actual-data:/data
+    networks:
+      - proxy
+    healthcheck:
+      test: ['CMD-SHELL', 'node src/scripts/health-check.js']
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    restart: unless-stopped
+
+networks:
+  proxy:
+    external: true
+    name: proxy
+    
