@@ -21,7 +21,7 @@ services:
       - traefik.http.routers.actual.middlewares=actual-ratelimit
       
     volumes:
-      - actual_data:/data
+      - data:/data
     networks:
       - proxy
     healthcheck:
@@ -33,7 +33,7 @@ services:
     restart: unless-stopped
 
 volumes:
- actual_data:
+  data:
 
 networks:
   proxy:
